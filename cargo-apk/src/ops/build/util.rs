@@ -83,7 +83,7 @@ where
         tmp_platform += 1;
     }
 
-    Err(format_err!("Unable to find NDK file"))
+    Err(format_err!("Unable to find NDK file: {:?} (exists? {:?}) (last platform: {})", path_builder(platform), path_builder(platform).exists(), tmp_platform))
 }
 
 // Returns path to clang executable/script that should be used to build the target
@@ -93,12 +93,7 @@ pub fn find_clang(
 ) -> CargoResult<PathBuf> {
     let bin_folder = llvm_toolchain_root(config).join("bin");
     find_ndk_path(config.min_sdk_version, |platform| {
-        bin_folder.join(format!(
-            "{}{}-clang{}",
-            build_target.ndk_llvm_triple(),
-            platform,
-            EXECUTABLE_SUFFIX_CMD
-        ))
+        bin_folder.join("clang")
     })
     .map_err(|_| format_err!("Unable to find NDK clang"))
 }
@@ -110,23 +105,19 @@ pub fn find_clang_cpp(
 ) -> CargoResult<PathBuf> {
     let bin_folder = llvm_toolchain_root(config).join("bin");
     find_ndk_path(config.min_sdk_version, |platform| {
-        bin_folder.join(format!(
-            "{}{}-clang++{}",
-            build_target.ndk_llvm_triple(),
-            platform,
-            EXECUTABLE_SUFFIX_CMD
-        ))
+        bin_folder.join("clang++")
     })
     .map_err(|_| format_err!("Unable to find NDK clang++"))
 }
 
 // Returns path to ar.
 pub fn find_ar(config: &AndroidConfig, build_target: AndroidBuildTarget) -> CargoResult<PathBuf> {
-    let ar_path = llvm_toolchain_root(config).join("bin").join(format!(
-        "{}-ar{}",
-        build_target.ndk_triple(),
-        EXECUTABLE_SUFFIX_EXE
-    ));
+    let ar_path = llvm_toolchain_root(config).join("bin").join("llvm-ar");
+    // .join(format!(
+    //     "{}-ar{}",
+    //     build_target.ndk_triple(),
+    //     EXECUTABLE_SUFFIX_EXE
+    // ));
     if ar_path.exists() {
         Ok(ar_path)
     } else {
@@ -142,7 +133,13 @@ pub fn find_readelf(
     config: &AndroidConfig,
     build_target: AndroidBuildTarget,
 ) -> CargoResult<PathBuf> {
-    let readelf_path = llvm_toolchain_root(config).join("bin").join(format!(
+    // /nix/store/mpjskgz8g998676lmldj16yy6mxxln98-ndk-bundle-18.1.5063045/libexec/android-sdk/ndk-bundle/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-readelf
+    let tool_root = config.ndk_path
+        .join("toolchains")
+        .join(build_target.toolchain_triple().to_owned() + "-4.9")
+        .join("prebuilt/linux-x86_64");
+    let readelf_path = tool_root
+    .join("bin").join(format!(
         "{}-readelf{}",
         build_target.ndk_triple(),
         EXECUTABLE_SUFFIX_EXE

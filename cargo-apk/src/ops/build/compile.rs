@@ -251,22 +251,32 @@ mod cargo_apk_glue_code {
             }
 
             // Determine paths
-            let tool_root = util::llvm_toolchain_root(&self.config);
+            let tool_root = self.config.ndk_path
+                .join("toolchains")
+                .join(self.build_target.toolchain_triple().to_owned() + "-4.9")
+                .join("prebuilt/linux-x86_64");
             let linker_path = tool_root
                 .join("bin")
-                .join(format!("{}-ld", &self.build_target.ndk_triple()));
-            let sysroot = tool_root.join("sysroot");
+                .join(format!("{}-ld", self.build_target.ndk_triple()));
+            let sysroot = self.config
+                .ndk_path
+                .join("sysroot");
             let version_independent_libraries_path = sysroot
                 .join("usr")
                 .join("lib")
                 .join(&self.build_target.ndk_triple());
             let version_specific_libraries_path =
                 util::find_ndk_path(self.config.min_sdk_version, |platform| {
-                    version_independent_libraries_path.join(platform.to_string())
+                    // e.g. /nix/store/hashash-ndk-bundle-18.1.5063045/libexec/android-sdk/ndk-bundle/platforms/android-23/arch-arm/usr/lib/
+                    self.config.ndk_path
+                    .join("platforms/android-".to_owned() + platform.to_string().as_str())
+                    .join(self.build_target.platform_double())
+                    .join("usr")
+                    .join("lib")
                 })?;
+            // Add -lgcc: /nix/store/hashash-ndk-bundle-18.1.5063045/libexec/android-sdk/ndk-bundle/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/lib/gcc/arm-linux-androideabi/4.9.x/
             let gcc_lib_path = tool_root
-                .join("lib/gcc")
-                .join(&self.build_target.ndk_triple())
+                .join("lib/gcc/".to_owned() + &self.build_target.ndk_triple().to_string())
                 .join("4.9.x");
 
             // Add linker arguments
@@ -411,12 +421,35 @@ fn build_android_native_glue(
     let android_native_glue_object_path =
         android_native_glue_build_path.join("android_native_glue.o");
 
+    // Path
+    let sysroot = config.ndk_path.join("sysroot");
+    let isystem = sysroot.join("usr/include/").join(build_target.ndk_triple());
+
+    // println!("{:?}", util::script_process(clang)
+    //     .arg(android_native_glue_src_path)
+    //     .arg("-isystem")
+    //     .arg(isystem)
+    //     .arg("-c")
+    //     .arg("-o")
+    //     .arg(&android_native_glue_object_path)
+    //     .arg("--target=".to_owned() + build_target.ndk_llvm_triple() + format!("{}", config.min_sdk_version).as_str())
+    //     .arg("--sysroot")
+    //     .arg(config.ndk_path.join("sysroot"))
+    //     .get_args()
+    // );
+    // panic!("Force exit");
+
     // Will produce warnings when bulding on linux? Create constants for extensions that can be used.. Or have separate functions?
     util::script_process(clang)
         .arg(android_native_glue_src_path)
+        .arg("-isystem")
+        .arg(isystem)
         .arg("-c")
         .arg("-o")
         .arg(&android_native_glue_object_path)
+        .arg("--target=".to_owned() + build_target.ndk_llvm_triple() + format!("{}", config.min_sdk_version).as_str())
+        .arg("--sysroot")
+        .arg(config.ndk_path.join("sysroot"))
         .exec()?;
 
     Ok(android_native_glue_object_path)
