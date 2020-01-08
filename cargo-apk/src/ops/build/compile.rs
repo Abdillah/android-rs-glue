@@ -50,6 +50,11 @@ pub fn build_shared_libraries(
         std::env::set_var("CXX", util::find_clang_cpp(config, build_target)?);
         std::env::set_var("AR", util::find_ar(config, build_target)?);
 
+        let mut cflags = String::new();
+        cflags.push_str((String::from(" -I") + (config.ndk_path.join("sysroot/usr/include")).to_str().unwrap()).as_str());
+        cflags.push_str((String::from(" -I") + (config.ndk_path.join("sysroot/usr/include").join(build_target.ndk_triple())).to_str().unwrap()).as_str());
+        std::env::set_var("CFLAGS", cflags);
+
         // Use libc++. It is current default C++ runtime
         std::env::set_var("CXXSTDLIB", "c++");
 
